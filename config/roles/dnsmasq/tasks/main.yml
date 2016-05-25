@@ -1,0 +1,6 @@
+---
+# local dns
+- yum: pkg=dnsmasq state=latest
+- template: src=dnsmasq.conf.j2 dest=/etc/dnsmasq.conf
+- service: name=dnsmasq state=restarted enabled=yes
+- firewalld: port=53/udp state=enabled permanent=true immediate=yes

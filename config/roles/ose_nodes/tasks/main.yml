@@ -1,0 +1,15 @@
+---
+- template: src=resolv.conf.j2 dest=/etc/resolv.conf
+- yum: name={{item}} state=latest
+  with_items:
+    - wget
+    - git
+    - net-tools
+    - bind-utils
+    - iptables-services
+    - bridge-utils
+    - bash-completion
+    - docker
+- template: src=docker.j2 dest=/etc/sysconfig/docker
+- service: name=docker state=restarted enabled=yes
+- command: docker-storage-setup

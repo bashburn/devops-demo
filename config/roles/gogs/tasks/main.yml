@@ -1,0 +1,15 @@
+---
+# gogs with mariadb
+- yum: pkg=mariadb-server state=latest
+- service: name=mariadb state=started enabled=yes
+- yum: name=MySQL-python state=latest
+- mysql_db: name=gogs
+  register: result
+- rpm_key:
+    state: present
+    key: "https://rpm.packager.io/key"
+- copy: src=gogs.repo dest=/etc/yum.repos.d
+- yum: pkg=gogs state=latest
+- template: src=gogs-app.ini.j2 dest=/etc/gogs/conf/app.ini
+- service: name=gogs state=restarted enabled=yes
+- copy: src=gogs-user.sql dest=/opt

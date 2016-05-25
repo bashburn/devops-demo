@@ -1,0 +1,6 @@
+---
+# Docker
+- yum: name=docker state=latest
+- copy: src=docker-network dest=/etc/sysconfig/docker-network
+- service: name=docker state=restarted enabled=yes
+- firewalld: port=2376/tcp permanent=true state=enabled immediate=yes

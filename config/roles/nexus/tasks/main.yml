@@ -1,0 +1,17 @@
+---
+# nexus repository
+- yum: pkg=java-1.8.0-openjdk state=latest
+- user: name=nexus
+- local_action: stat path=config/roles/nexus/files/nexus-3.0.0-03-unix.tar.gz
+  register: result
+- copy: src=nexus-3.0.0-03-unix.tar.gz dest=/opt
+  when: result|success
+- get_url:
+    url: https://sonatype-download.global.ssl.fastly.net/nexus/3/nexus-3.0.0-03-unix.tar.gz
+    dest: /opt
+    checksum: md5:178c3da6c6a496d32901378fa9bd7b42
+  when: result|failed
+- unarchive: src=/opt/nexus-3.0.0-03-unix.tar.gz dest=/opt owner=nexus group=nexus copy=no
+- file: src=/opt/nexus-3.0.0-03/bin/nexus dest=/usr/local/bin/nexus state=link
+- copy: src=nexus.service dest=/etc/systemd/system/
+- service: name=nexus.service state=restarted enabled=yes

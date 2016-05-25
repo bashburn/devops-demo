@@ -1,0 +1,10 @@
+---
+# nginx proxy
+- yum: pkg=rh-nginx18 state=latest
+- yum: name=libsemanage-python state=latest
+- seboolean: name=httpd_can_network_relay state=yes persistent=yes
+- seboolean: name=httpd_can_network_connect state=yes persistent=yes
+- template: src=gogs-nginx.conf.j2 dest=/etc/opt/rh/rh-nginx18/nginx/conf.d/gogs.conf
+- template: src=nexus-nginx.conf.j2 dest=/etc/opt/rh/rh-nginx18/nginx/conf.d/nexus.conf
+- service: name=rh-nginx18-nginx state=restarted enabled=yes
+- firewalld: service=http permanent=true state=enabled immediate=yes

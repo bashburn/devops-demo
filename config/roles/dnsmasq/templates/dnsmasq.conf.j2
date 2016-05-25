@@ -1,0 +1,9 @@
+#/etc/dnsmasq.conf
+domain-needed
+bogus-priv
+
+address=/infra.{{ base_hostname }}/{{ infra_address }}
+address=/nexus.{{ base_hostname }}/{{ infra_address }}
+address=/gogs.{{ base_hostname }}/{{ infra_address }}
+address=/openshift.{{ base_hostname }}/{{ master_address }}
+server=8.8.8.8

@@ -2,11 +2,11 @@
 # vi: set ft=ruby :
 
 # The private network IP of the VM. You will use this IP to connect to OpenShift.
-PUBLIC_ADDRESS="10.1.2.2"
-INFRA_ADDRESS="10.1.2.3"
-
-BASE_HOSTNAME="devops.bashburn.com"
-HOSTNAME = "openshift.#{BASE_HOSTNAME}"
+BASE_PUBLIC_ADDRESS = ENV['BASE_PUBLIC_ADDRESS'] || "10.1.2."
+INFRA_ADDRESS = ENV['INFRA_ADDRESS'] || "#{BASE_PUBLIC_ADDRESS}.3"
+BASE_HOSTNAME = ENV['BASE_HOSTNAME'] || "devops.bashburn.com"
+OSE_HOSTNAME = ENV['OSE_HOSTNAME'] || "openshift.#{BASE_HOSTNAME}"
+NUM_NODES = (ENV['NUM_NODES'] || 2).to_i
 
 # Number of virtualized CPUs
 VM_CPU = ENV['VM_CPU'] || 2
@@ -28,17 +28,9 @@ unless errors.empty?
   fail Vagrant::Errors::VagrantError.new, msg
 end
 
-set_resolv_conf = <<-SHELL
-      echo "
-domain #{BASE_HOSTNAME}
-nameserver #{PUBLIC_ADDRESS}
-" > /etc/resolv.conf
-SHELL
-
 Vagrant.configure(2) do |config|
-  config.vm.box = "bashburn/cdkv2"
-  config.hostmanager.enabled = false
   config.vbguest.auto_update = false
+  config.ssh.insert_key = false
 
   config.vm.provider "virtualbox" do |v, override|
     v.memory = VM_MEMORY
@@ -53,67 +45,47 @@ Vagrant.configure(2) do |config|
     v.driver = "kvm"
   end
 
-
   if ENV.has_key?('RHN_USERNAME') && ENV.has_key?('RHN_PASSWORD') && ENV.has_key?('RHN_OSE_POOL')
     config.registration.username = ENV['RHN_USERNAME']
     config.registration.password = ENV['RHN_PASSWORD']
     config.registration.pools = [ ENV['RHN_OSE_POOL'] ]
   end
-  config.vm.define "infra.#{BASE_HOSTNAME}" do |infra|
-    config.vm.box = "rhel-7.2"
-    config.vm.hostname = "infra.#{BASE_HOSTNAME}"
-    config.vm.network "private_network", ip: "#{INFRA_ADDRESS}"
-    config.vm.provision "ansible" do |ansible|
-      ansible.playbook = "config/infra-playbook.yml"
-      ansible.groups = {
-        "infra" => ["infra.devops.bashburn.com"],
-        "infra:vars" => {"mysql_password" => "devops"}
-      }
+  config.vm.box = "rhel-7.2"
+
+  config.vm.define "infra" do |infra|
+    infra.vm.hostname = "infra.#{BASE_HOSTNAME}"
+    infra.vm.network "private_network", ip: "#{INFRA_ADDRESS}"
+    infra.hostmanager.aliases = %W(infra.#{BASE_HOSTNAME} gogs.#{BASE_HOSTNAME} nexus.#{BASE_HOSTNAME})
+  end
+  NUM_NODES.times do |i|
+    node_index = i + 1
+    config.vm.define "node#{node_index}" do |node|
+      node.vm.hostname = "node#{node_index}.#{BASE_HOSTNAME}"
+      node.hostmanager.aliases = %W(node#{node_index}.#{BASE_HOSTNAME})
+      node.vm.network "private_network", ip: "#{BASE_PUBLIC_ADDRESS}#{100 + node_index}"
     end
-    # config.vm.provision "shell", inline: set_resolv_conf
   end
-  config.vm.define HOSTNAME do |ose|
-    config.vm.hostname = HOSTNAME
-    config.vm.network "private_network", ip: "#{PUBLIC_ADDRESS}"
-    config.servicemanager.services = "docker"
-
-    config.vm.provision "shell", inline: <<-SHELL
-      systemctl enable openshift 2>&1
-      systemctl start openshift
-
-      echo "
-#/etc/dnsmasq.conf
-domain-needed
-bogus-priv
-
-address=/.#{BASE_HOSTNAME}/#{PUBLIC_ADDRESS}
-server=8.8.8.8
-" > /etc/dnsmasq.conf
-      echo "
-domain #{BASE_HOSTNAME}
-nameserver #{PUBLIC_ADDRESS}
-" > /etc/resolv.conf
-    SHELL
-
-    config.vm.provision "shell", inline: <<-SHELL
-      echo
-      echo "Successfully started and provisioned VM with #{VM_CPU} cores and #{VM_MEMORY} MB of memory."
-      echo "To modify the number of cores and/or available memory set the environment variables"
-      echo "VM_CPU respectively VM_MEMORY."
-      echo
-      echo "You can now access the OpenShift console on: https://#{PUBLIC_ADDRESS}:8443/console"
-      echo
-      echo "To use OpenShift CLI, run:"
-      echo "$ vagrant ssh"
-      echo "$ oc login #{PUBLIC_ADDRESS}:8443"
-      echo
-      echo "Configured users are (<username>/<password>):"
-      echo "openshift-dev/devel"
-      echo "admin/admin"
-      echo
-      echo "If you have the oc client library on your host, you can also login from your host."
-      echo
-    SHELL
+  config.vm.define "openshift" do |ose|
+    ose.vm.hostname = "#{OSE_HOSTNAME}"
+    ose.hostmanager.aliases = %W(#{OSE_HOSTNAME})
+    ose.vm.network "private_network", ip: "#{BASE_PUBLIC_ADDRESS}.200"
+    ose.servicemanager.services = "docker"
   end
-
+  config.vm.provision :ansible do |ansible|
+    ansible.playbook = "config/devops-demo-playbook.yml"
+    ansible.sudo = true
+    ansible.groups = {
+      "infra" => ["infra.#{BASE_HOSTNAME}"],
+      "nodes" => ["#{OSE_HOSTNAME}"] + Array.new(NUM_NODES).map.with_index { |x, i| "node#{i + 1}.#{BASE_HOSTNAME}" },
+      "masters" => ["#{OSE_HOSTNAME}"],
+    }
+    ansible.extra_vars = {
+      deployment_type: 'openshift-enterprise'
+      base_hostname: "#{BASE_HOSTNAME}"
+      base_address: "#{BASE_PUBLIC_ADDRESS}"
+      infra_address: "#{INFRA_ADDRESS}"
+      master_address: "#{BASE_PUBLIC_ADDRESS}.200"
+      openshift_ansible_location: "#{Shell.cwd}/external/openshift-ansible"
+    }
+  end
 end

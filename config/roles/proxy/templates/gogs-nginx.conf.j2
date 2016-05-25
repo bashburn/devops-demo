@@ -1,6 +1,6 @@
 server {
-  listen          *:80;
-  server_name     gogs.devops.bashburn.com;
+  listen          80;
+  server_name     gogs.{{ base_hostname }};
   location / {
     proxy_pass      http://localhost:3000;
   }

@@ -1,0 +1,36 @@
+---
+- hosts: all
+  become: true
+  pre_tasks:
+    - command: >
+        subscription-manager repos
+          --disable="*"
+          --enable="rhel-7-server-rpms"
+          --enable="rhel-7-server-extras-rpms"
+    - yum: pkg=* state=latest
+- hosts: infra
+  become: true
+  vars:
+    base_hostname: devops.bashburn.com
+    base_address: 10.1.2
+    infra_address: 10.1.2.3
+    master_address: 10.1.2.200
+  roles:
+    - dnsmasq
+    - nexus
+    - gogs
+    - proxy
+    - docker
+  pre_tasks:
+    - command: >
+        subscription-manager repos
+          --enable="rhel-server-rhscl-7-rpms"
+- hosts: nodes
+  become: true
+  pre_tasks:
+    - command: >
+        subscription-manager repos
+          --enable="rhel-7-server-ose-3.2-rpms"
+  roles:
+    - ose_nodes
+- include: {{openshift_ansible_location}}/playbooks/byo/vagrant.yml
