@@ -8,7 +8,7 @@
           --enable="rhel-7-server-rpms"
           --enable="rhel-7-server-extras-rpms"
     - yum: pkg=* state=latest
-- hosts: infra
+- hosts: infrastructure
   become: true
   vars:
     base_hostname: devops.bashburn.com
@@ -33,4 +33,4 @@
           --enable="rhel-7-server-ose-3.2-rpms"
   roles:
     - ose_nodes
-- include: {{openshift_ansible_location}}/playbooks/byo/vagrant.yml
+- include: "{{ openshift_ansible_location }}/playbooks/byo/config.yml"
