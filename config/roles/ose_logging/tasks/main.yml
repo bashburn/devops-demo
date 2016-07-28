@@ -1,0 +1,30 @@
+- command: oc get projects
+  register: project_list
+- command: oadm new-project logging --node-selector="region=primary"
+  when: project_list.stdout.find('logging') == -1
+- command: oc get secrets -n logging
+  register: secrets_list
+- command: oc secrets new logging-deployer nothing=/dev/null -n logging
+  when: secrets_list.stdout.find('logging-deploy') == -1
+- command: oc get serviceaccount -n logging
+  register: serviceaccount_list
+- copy: src=logging-deployer-serviceaccount.yml dest=/root/logging-deployer-serviceaccount.yml
+  ignore_errors: true
+- command: oc create -n logging -f /root/logging-deployer-serviceaccount.yml
+  when: serviceaccount_list.stdout.find('logging-deployer') == -1
+- command: oc policy add-role-to-user edit -n logging --serviceaccount logging-deployer
+- command: oadm policy add-scc-to-user privileged system:serviceaccount:logging:aggregated-logging-fluentd
+- command: oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:logging:aggregated-logging-fluentd
+- command: >
+    oc new-app logging-deployer-template -n logging \
+               --param KIBANA_HOSTNAME=kibana.devops.bashburn.com \
+               --param KIBANA_OPS_HOSTNAME=kibana-ops.devops.bashburn.com \
+               --param PUBLIC_MASTER_URL=https://openshift.devops.bashburn.com:8443 \
+               --param MASTER_URL=https://openshift.devops.bashburn.com:8443 \
+               --param ENABLE_OPS_CLUSTER=true \
+               --param ES_CLUSTER_SIZE=1 --param ES_OPS_CLUSTER_SIZE=1 \
+               --param ES_INSTANCE_RAM=512M --param ES_OPS_INSTANCE_RAM=512M
+- command: oc import-image logging-auth-proxy:3.2.0 -n logging --confirm --from registry.access.redhat.com/openshift3/logging-auth-proxy:3.2.0
+- command: oc import-image logging-kibana:3.2.0 -n logging --confirm --from registry.access.redhat.com/openshift3/logging-kibana:3.2.0
+- command: oc import-image logging-elasticsearch:3.2.0 -n logging --confirm --from registry.access.redhat.com/openshift3/logging-elasticsearch:3.2.0
+- command: oc import-image logging-fluentd:3.2.0 -n logging --confirm --from registry.access.redhat.com/openshift3/logging-fluentd:3.2.0

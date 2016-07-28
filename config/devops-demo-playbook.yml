@@ -12,9 +12,9 @@
   become: true
   vars:
     base_hostname: devops.bashburn.com
-    base_address: 10.1.2
-    infra_address: 10.1.2.3
-    master_address: 10.1.2.200
+    base_address: 10.2.2
+    infra_address: 10.2.2.3
+    master_address: 10.2.2.200
   roles:
     - dnsmasq
     - nexus

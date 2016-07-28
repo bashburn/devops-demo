@@ -1,0 +1,6 @@
+---
+- hosts: openshift
+  become: true
+  roles:
+    - ose_setup
+#    - ose_logging

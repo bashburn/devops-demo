@@ -1,0 +1,18 @@
+- copy: src=metrics-deploy-serviceaccount.yml dest=/root/metrics-deploy-serviceaccount.yml
+  ignore_errors: true
+- command: oc get serviceaccount -n openshift-infra
+  register: serviceaccount_list
+- command: oc create -n openshift-infra -f /root/metrics-deploy-serviceaccount.yml
+  when: serviceaccount_list.stdout.find('metrics-deployer') == -1
+- command: oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer
+- command: oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster
+- command: oc get secrets -n openshift-infra
+  register: secrets_list
+- command: oc secrets new metrics-deployer nothing=/dev/null -n openshift-infra
+  when: secrets_list.stdout.find('metrics-deployer') == -1
+- copy: src=metrics-deployer-template.yml dest=/root/metrics-deployer-template.yml
+  ignore_errors: true
+- command: >
+    oc new-app -n openshift-infra -f /root/metrics-deployer-template.yml \
+               -p HAWKULAR_METRICS_HOSTNAME=metrics.devops.bashburn.com \
+               -p USE_PERSISTENT_STORAGE=false

@@ -1,0 +1,16 @@
+---
+- command: subscription-manager repos --enable="rhel-7-server-optional-rpms" creates=/root/rhel-7-server-options-rpms
+- file: path=/root/rhel-7-server-optional-rpms state=touch
+- yum: name=https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm state=present
+- yum: pkg=python-passlib state=latest
+- command: yum-config-manager --disable epel-release
+- htpasswd: path=/etc/origin/master/htpasswd name=bashburn password=redhat
+- command: oadm policy add-cluster-role-to-user admin bashburn
+- command: oadm registry --selector='region=infra'
+  ignore_errors: true
+- command: oc get pods -n default --selector router=router
+  register: router_state
+- command: oc delete all -n default --selector router=router
+  when: router_state.stdout.find('Running') == -1
+- command: oadm router --selector='region=infra'
+  ignore_errors: true

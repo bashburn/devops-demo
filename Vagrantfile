@@ -61,7 +61,10 @@ Vagrant.configure(2) do |config|
   config.vm.define "infra" do |infra|
     infra.vm.hostname = "infra"
     infra.vm.network "private_network", ip: "#{INFRA_ADDRESS}"
+    infra.vm.network "forwarded_port", host: 2376, guest: 2376
     infra.hostmanager.aliases = %W(infra.#{BASE_HOSTNAME} gogs.#{BASE_HOSTNAME} nexus.#{BASE_HOSTNAME})
+    infra.vm.synced_folder "../nexus", "/nexus"
+    infra.vm.synced_folder "../jenkins", "/jenkins"
   end
   NUM_NODES.times do |i|
     node_index = i + 1
@@ -76,11 +79,11 @@ Vagrant.configure(2) do |config|
     ose.hostmanager.aliases = %W(#{OSE_HOSTNAME})
     ose.vm.network "private_network", ip: "#{BASE_PUBLIC_ADDRESS}.200"
     ose.servicemanager.services = "docker"
-    ose.vm.provision :ansible do |ansible|
+    ose.vm.provision 'install', type: 'ansible' do |ansible|
       ansible.playbook = "config/devops-demo-playbook.yml"
       ansible.sudo = true
       ansible.limit = "all,localhost"
-      # ansible.verbose = true
+      ansible.verbose = false
       ansible.groups = {
         "infrastructure" => ["infra"],
         "nodes" => ["openshift"] + Array.new(NUM_NODES).map.with_index { |x, i| "node#{i + 1}" },
@@ -92,6 +95,8 @@ Vagrant.configure(2) do |config|
           "openshift_ip" => "#{BASE_PUBLIC_ADDRESS}.200",
           "openshift_public_ip" => "#{BASE_PUBLIC_ADDRESS}.200",
           "openshift_scheduleable" => true,
+          "openshift_hosted_router_selector" => "region=infra",
+          "openshift_registry_selector" => "region=infra",
           "openshift_node_labels" => "\"{'region': 'infra', 'zone': 'default'}\""
         }
       }
@@ -101,6 +106,8 @@ Vagrant.configure(2) do |config|
           "openshift_hostname" => "node#{node_index}.#{BASE_HOSTNAME}",
           "openshift_ip" => "#{BASE_PUBLIC_ADDRESS}.#{100 + node_index}",
           "openshift_public_ip" => "#{BASE_PUBLIC_ADDRESS}.#{100 + node_index}",
+          "openshift_hosted_router_selector" => "region=infra",
+          "openshift_registry_selector" => "region=infra",
           "openshift_node_labels" => "\"{'region': 'primary', 'zone': 'default'}\""
         }
       end
@@ -118,6 +125,11 @@ Vagrant.configure(2) do |config|
         "openshift_master_identity_providers" => "[{'name': 'htpasswd_auth', 'login': 'true', 'challenge': 'true'," +
           "'kind': 'HTPasswdPasswordIdentityProvider', 'filename': '/etc/origin/master/htpasswd'}]"
       }
+    end
+    ose.vm.provision 'post-install', type: 'ansible' do |ansible|
+      ansible.playbook = "config/devops-post-install.yml"
+      ansible.sudo = true
+      ansible.limit = "all"
     end
   end
 end
